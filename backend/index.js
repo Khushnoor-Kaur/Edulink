@@ -1,80 +1,82 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenAI } = require('@google/genai');
+const Tesseract = require('tesseract.js');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialize the free Gemini client
-// Replace 'YOUR_GEMINI_API_KEY' with the key you generated from Google AI Studio
+// Initialize Third-Party Secure Connectors
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-let users = [
-  { email: "teacher@school.edu", password: "password123", role: "teacher" },
-  { email: "student@school.edu", password: "password123", role: "student" }
-];
 
-let announcements = [
-  { id: 1, title: "🚀 Welcome to the New Semester!", content: "Make sure to check your class schedules and bring your laptops.", tag: "Info", date: "Just Now" },
-  { id: 2, title: "🚨 Math Quiz on Friday", content: "Chapters 1 to 3 will be covered. Don't forget your calculators!", tag: "Urgent", date: "1 hour ago" }
-];
+// ================= AUTHENTICATION SUBSYSTEM =================
+app.post('/api/auth/signup', async (req, res) => {
+  const { email, password, role } = req.body;
+  
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) return res.status(400).json({ error: error.message });
 
-// Added mock document content directly inside the resources to simulate text file content
-let resources = [
-  { 
-    id: 1, 
-    title: "Physics Unit 1 Notes", 
-    link: "https://example.com/physics1", 
-    subject: "Physics",
-    content: "Newton's First Law states that an object remains at rest or in uniform motion unless acted upon by a force. Newton's Second Law defines force as mass times acceleration (F=ma). Newton's Third Law states that for every action, there is an equal and opposite reaction. Kinetic energy is calculated using 0.5 * m * v^2."
-  },
-  { 
-    id: 2, 
-    title: "Math Formula Cheat-Sheet", 
-    link: "https://example.com/math-formulas", 
-    subject: "Math",
-    content: "The quadratic formula is x = (-b ± √(b² - 4ac)) / 2a. The area of a circle is πr². The Pythagorean theorem states that a² + b² = c² for a right-angled triangle. Derivative of x² is 2x."
+  if (data.user) {
+    await supabase.from('profiles').insert([
+      { id: data.user.id, email: email.toLowerCase(), role, tier: 'free' }
+    ]);
   }
-];
+  res.status(201).json({ message: "Registration verified! Please log in." });
+});
 
-const studentPerformance = {
-  metrics: { classAverage: "84.5%", attendanceRate: "92.1%", submissions: "96.4%" },
-  roster: [
-    { id: "S101", name: "Aarav Sharma", grade: "A", attendance: "95%", status: "Excellent" },
-    { id: "S102", name: "Diya Patel", grade: "B+", attendance: "89%", status: "On Track" },
-    { id: "S103", name: "Kabir Singh", grade: "A-", attendance: "94%", status: "Excellent" },
-    { id: "S104", name: "Meera Reddy", grade: "C", attendance: "81%", status: "Needs Review" }
-  ]
-};
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return res.status(401).json({ error: error.message });
 
-// ================= RAG AI CHAT ENDPOINT =================
-app.post('/api/ai/chat', async (req, res) => {
-  const { question, resourceId } = req.body;
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+  res.status(200).json({ token: data.session.access_token, user: profile });
+});
 
-  if (!question) {
-    return res.status(400).json({ error: "Please provide a question." });
-  }
+// ================= FEATURE 1: INTERACTIVE ANNOTATIONS =================
+app.get('/api/annotations/:resourceId', async (req, res) => {
+  const { data, error } = await supabase
+    .from('annotations')
+    .select('*, profiles(email)')
+    .eq('resource_id', req.params.resourceId)
+    .order('created_at', { ascending: true });
+    
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
 
-  // Look up the targeted study document
-  const resource = resources.find(r => r.id === parseInt(resourceId));
-  const referenceContext = resource ? resource.content : "No specific document selected.";
+app.post('/api/annotations', async (req, res) => {
+  const { resource_id, user_id, selected_text, comment_text, layer, parent_id } = req.body;
+  const { data, error } = await supabase
+    .from('annotations')
+    .insert([{ resource_id, user_id, selected_text, comment_text, layer, parent_id }])
+    .select();
+    
+  if (error) return res.status(400).json({ error: error.message });
+  res.status(201).json(data[0]);
+});
+
+// ================= FEATURE 2: AI SMART SUMMARIES & FLASHCARDS =================
+app.post('/api/ai/process-material', async (req, res) => {
+  const { resourceId, content } = req.body;
 
   try {
-    // Structured engineering prompt passing the context dynamically (RAG)
     const prompt = `
-      You are an expert, supportive AI Study Tutor helper inside the EduLink application. 
-      Your task is to answer the student's question accurately based ONLY on the provided reference study material text below.
-      If the answer cannot be found or inferred from the reference material, state that explicitly and offer general assistance.
-
+      Analyze the following academic document material and generate an actionable study suite structure in valid raw JSON.
+      Do not wrap your output in markdown text blocks or write any introductory conversational sentences. Return only the string text object parsed as structural JSON formatting matching this scheme:
+      {
+        "summary": "Detailed summary paragraph encapsulating core concepts...",
+        "glossary": [{"term": "Name of term", "definition": "Clear breakdown"}],
+        "flashcards": [{"question": "Conceptual prompt?", "answer": "Core targeted insight"}]
+      }
       ---
-      REFERENCE MATERIAL:
-      ${referenceContext}
-      ---
-
-      STUDENT QUESTION: 
-      ${question}
-
-      AI TUTOR ANSWER:
+      MATERIAL TO PROCESS:
+      ${content}
     `;
 
     const response = await ai.models.generateContent({
@@ -82,58 +84,110 @@ app.post('/api/ai/chat', async (req, res) => {
       contents: prompt,
     });
 
-    res.status(200).json({ reply: response.text });
-  } catch (error) {
-    console.error("Gemini RAG API Error:", error);
-    res.status(500).json({ error: "AI Tutor had trouble parsing that. Please check your API key config." });
+    // Strip markdown formatting fences if returned by the model
+    let cleanJsonString = response.text.trim();
+    if (cleanJsonString.startsWith('```json')) cleanJsonString = cleanJsonString.replace(/^```json/, '').replace(/```$/, '');
+    if (cleanJsonString.startsWith('```')) cleanJsonString = cleanJsonString.replace(/^```/, '').replace(/```$/, '');
+
+    const generatedData = JSON.parse(cleanJsonString.trim());
+
+    const { data, error } = await supabase
+      .from('ai_study_assets')
+      .upsert({
+        resource_id: resourceId,
+        summary: generatedData.summary,
+        glossary: generatedData.glossary,
+        flashcards: generatedData.flashcards
+      })
+      .select();
+
+    if (error) throw error;
+    res.json(data[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to compile AI study suite elements." });
   }
 });
 
-// Auth Routes
-app.post('/api/auth/signup', (req, res) => {
-  const { email, password, role } = req.body;
-  if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-    return res.status(400).json({ error: "Account already exists!" });
+// ================= FEATURE 3: VERSION CONTROL SYSTEM =================
+app.post('/api/resources/update', async (req, res) => {
+  const { resourceId, title, link, content, changelog } = req.body;
+
+  const { data: current } = await supabase.from('resources').select('version').eq('id', resourceId).single();
+  const nextVersion = current ? current.version + 1 : 2;
+
+  const { data, error } = await supabase
+    .from('resources')
+    .update({ title, link, raw_content: content, version: nextVersion, changelog })
+    .eq('id', resourceId)
+    .select();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data[0]);
+});
+
+// ================= FEATURE 4: OCR HANDWRITING EXTRACTION ENGINE =================
+app.post('/api/resources/ocr-upload', async (req, res) => {
+  const { imageUrl, title, subject, userId } = req.body;
+
+  try {
+    const { data: { text } } = await Tesseract.recognize(imageUrl, 'eng');
+    
+    const { data, error } = await supabase
+      .from('resources')
+      .insert([{ title, link: imageUrl, subject, raw_content: text, uploaded_by: userId }])
+      .select();
+
+    if (error) throw error;
+    res.status(201).json({ resource: data[0], extractedText: text });
+  } catch (err) {
+    res.status(500).json({ error: "OCR processing failure during handwriting scanning." });
   }
-  const newUser = { email: email.toLowerCase(), password, role };
-  users.push(newUser);
-  res.status(201).json({ message: "Registration successful!", role: newUser.role });
 });
 
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-  if (!user) return res.status(401).json({ error: "Invalid credentials!" });
-  res.status(200).json({ message: "Login successful!", role: user.role });
+// ================= FEATURE 5: GAMIFIED PEER STUDY BOUNTIES =================
+app.get('/api/bounties', async (req, res) => {
+  const { data } = await supabase.from('peer_notes').select('*, profiles(email)').order('upvotes', { ascending: false });
+  res.json(data);
 });
 
-// App content management routes
-app.get('/api/announcements', (req, res) => res.json(announcements));
-app.post('/api/announcements', (req, res) => {
-  const newAnn = { id: announcements.length + 1, title: req.body.title, content: req.body.content, tag: req.body.tag || "Info", date: "Just Now" };
-  announcements.unshift(newAnn);
-  res.status(201).json(newAnn);
+app.post('/api/bounties/claim', async (req, res) => {
+  const { bountyId, noteLink, contributorId } = req.body;
+
+  const { data, error } = await supabase
+    .from('peer_notes')
+    .update({ note_link: noteLink, filled_by: contributorId, status: 'filled' })
+    .eq('id', bountyId)
+    .select();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data[0]);
 });
 
-app.get('/api/resources', (req, res) => res.json(resources));
-app.post('/api/resources', (req, res) => {
-  const newRes = { 
-    id: resources.length + 1, 
-    title: req.body.title, 
-    link: req.body.link, 
-    subject: req.body.subject || "General",
-    content: `Custom reference material notes for ${req.body.title}. Ensure to review core formulas.`
-  };
-  resources.unshift(newRes);
-  res.status(201).json(newRes);
+app.post('/api/bounties/verify', async (req, res) => {
+  const { bountyId, contributorId } = req.body;
+
+  await supabase.from('peer_notes').update({ status: 'verified' }).eq('id', bountyId);
+  
+  // Award 50 Bounty Points to the student contributor
+  const { data: currentProfile } = await supabase.from('profiles').select('bounty_points').eq('id', contributorId).single();
+  const currentPoints = currentProfile?.bounty_points || 0;
+
+  await supabase.from('profiles').update({ bounty_points: currentPoints + 50 }).eq('id', contributorId);
+  res.json({ message: "Note verified! 50 points awarded to contributor." });
 });
 
-app.delete('/api/resources/:id', (req, res) => {
-  resources = resources.filter(item => item.id !== parseInt(req.params.id));
-  res.status(200).json({ message: "Removed" });
+// Core Dynamic Global Fetch Endpoints
+app.get('/api/resources', async (req, res) => {
+  const { data } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
+  res.json(data);
 });
 
-app.get('/api/teacher/analytics', (req, res) => res.json(studentPerformance));
+app.post('/api/resources', async (req, res) => {
+  const { title, link, subject, content, userId } = req.body;
+  const { data } = await supabase.from('resources').insert([{ title, link, subject, raw_content: content, uploaded_by: userId }]).select();
+  res.status(201).json(data[0]);
+});
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Brain running on port ${PORT}`));
+app.listen(PORT, () => console.log(`EduLink Commercial Kernel active on port ${PORT}`));
