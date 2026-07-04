@@ -34,6 +34,20 @@ app.post('/api/resources', (req, res) => {
   resources.unshift(newRes);
   res.status(201).json(newRes);
 });
+// Delete a specific resource material by its unique ID
+app.delete('/api/resources/:id', (req, res) => {
+  const resourceId = parseInt(req.params.id);
+  const initialLength = resources.length;
+  
+  // Filter out the item we want to delete
+  resources = resources.filter(item => item.id !== resourceId);
+  
+  if (resources.length < initialLength) {
+    return res.status(200).json({ message: "Resource successfully removed", id: resourceId });
+  } else {
+    return res.status(404).json({ error: "Resource item not found" });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Brain running on port ${PORT}`));

@@ -43,6 +43,19 @@ function App() {
       .then(() => { fetchData(); setResTitle(''); setResLink(''); setLoading(false); })
       .catch(() => setLoading(false));
   };
+  const handleDeleteResource = (id) => {
+    if (!window.confirm("Are you sure you want to remove this study material?")) return;
+    setLoading(true);
+    axios.delete(`${API_BASE}/api/resources/${id}`)
+      .then(() => {
+        fetchData();
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error deleting resource:", err);
+        setLoading(false);
+      });
+  };
 
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', color: '#0f172a' }}>
@@ -160,9 +173,20 @@ function App() {
                       <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#047857', backgroundColor: '#d1fae5', padding: '4px 10px', borderRadius: '6px', textTransform: 'uppercase' }}>{res.subject}</span>
                       <h4 style={{ margin: '14px 0 0 0', fontSize: '1.1rem', fontWeight: '700', color: '#1e293b' }}>{res.title}</h4>
                     </div>
-                    <a href={res.link} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: '#4f46e5', fontWeight: '600', fontSize: '0.9rem', marginTop: '16px' }}>
-                      Access Material ↗
-                    </a>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+  <a href={res.link} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: '#4f46e5', fontWeight: '600', fontSize: '0.9rem' }}>
+    Access Material ↗
+  </a>
+  <button 
+    onClick={() => handleDeleteResource(res.id)}
+    disabled={loading}
+    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.85rem', fontWeight: '500', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', transition: 'background-color 0.2s' }}
+    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
+    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+  >
+    🗑️ Delete
+  </button>
+</div>
                   </div>
                 ))}
               </div>
