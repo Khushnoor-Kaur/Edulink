@@ -19,21 +19,21 @@ function App() {
   }, []);
 
   const fetchData = () => {
-    axios.get('http://localhost:5000/api/announcements').then((res) => setAnnouncements(res.data));
-    axios.get('http://localhost:5000/api/resources').then((res) => setResources(res.data));
+    axios.get('https://edulink-backend-0l0y.onrender.com').then((res) => setAnnouncements(res.data));
+    axios.get('https://edulink-backend-0l0y.onrender.com').then((res) => setResources(res.data));
   };
 
   const handlePostAnnouncement = (e) => {
     e.preventDefault();
     if (!annTitle || !annContent) return alert("Fill all notice fields!");
-    axios.post('http://localhost:5000/api/announcements', { title: annTitle, content: annContent, tag })
+    axios.post('https://edulink-backend-0l0y.onrender.com', { title: annTitle, content: annContent, tag })
       .then(() => { fetchData(); setAnnTitle(''); setAnnContent(''); });
   };
 
   const handlePostResource = (e) => {
     e.preventDefault();
     if (!resTitle || !resLink) return alert("Fill all resource fields!");
-    axios.post('http://localhost:5000/api/resources', { title: resTitle, link: resLink, subject })
+    axios.post('https://edulink-backend-0l0y.onrender.com', { title: resTitle, link: resLink, subject })
       .then(() => { fetchData(); setResTitle(''); setResLink(''); });
   };
 
