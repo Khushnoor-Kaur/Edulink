@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'react-items'; // Note: Ensure standard axios calls compile smoothly
-
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 function App() {
   // Authentication & View States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
