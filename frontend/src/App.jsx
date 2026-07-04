@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 function App() {
-  // Authentication & View States
+  // Auth Screen Flow States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState('student'); // 'student' or 'teacher'
+  const [isSignup, setIsSignup] = useState(false); // Toggle signup layout vs login layout
+  const [role, setRole] = useState('student'); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Core App Data States
+  // App Main State
   const [announcements, setAnnouncements] = useState([]);
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
@@ -19,7 +20,6 @@ function App() {
   const [resLink, setResLink] = useState('');
   const [subject, setSubject] = useState('Math');
   
-  // Analytics State
   const [analytics, setAnalytics] = useState({ metrics: { classAverage: '0%', attendanceRate: '0%', submissions: '0%' }, roster: [] });
   const [loading, setLoading] = useState(false);
 
@@ -41,10 +41,31 @@ function App() {
     axios.get(`${API_BASE}/api/resources`).then((res) => setResources(res.data)).catch(err => console.log(err));
   };
 
+  // Connect to live Signup API Endpoint
+  const handleSignup = (e) => {
+    e.preventDefault();
+    if (!email || !password) return alert("Please fill out all registration fields!");
+    
+    axios.post(`${API_BASE}/api/auth/signup`, { email, password, role })
+      .then((res) => {
+        alert(res.data.message + " Please sign in now.");
+        setIsSignup(false); // Send them directly to login layout screen
+        setPassword('');
+      })
+      .catch((err) => alert(err.response?.data?.error || "Registration failed"));
+  };
+
+  // Connect to live Login API Verification Endpoint
   const handleLogin = (e) => {
     e.preventDefault();
-    if (!email || !password) return alert("Please fill out your login details!");
-    setIsLoggedIn(true);
+    if (!email || !password) return alert("Please type your username and password!");
+    
+    axios.post(`${API_BASE}/api/auth/login`, { email, password })
+      .then((res) => {
+        setRole(res.data.role);
+        setIsLoggedIn(true);
+      })
+      .catch((err) => alert(err.response?.data?.error || "Invalid Credentials"));
   };
 
   const handlePostAnnouncement = (e) => {
@@ -73,47 +94,63 @@ function App() {
       .catch(() => setLoading(false));
   };
 
-  // ================= 1. LOGIN PORTAL VIEW =================
+  // ================= 1. GATEWAY VIEW PORTAL LAYER =================
   if (!isLoggedIn) {
     return (
       <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: '#f1f5f9', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
         <div style={{ backgroundColor: '#ffffff', maxWidth: '440px', width: '100%', borderRadius: '24px', padding: '40px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0' }}>
           
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
             <span style={{ fontSize: '3rem' }}>🎓</span>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800', margin: '12px 0 6px 0', color: '#0f172a' }}>Welcome to EduLink</h1>
-            <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>Select your role to continue</p>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: '800', margin: '12px 0 6px 0', color: '#0f172a' }}>
+              {isSignup ? "Create EduLink Profile" : "Welcome to EduLink"}
+            </h1>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>
+              {isSignup ? "Register to access your workspace" : "Sign in to access your classroom hub"}
+            </p>
           </div>
 
-          <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '6px', borderRadius: '12px', marginBottom: '24px' }}>
-            <button type="button" onClick={() => setRole('student')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', backgroundColor: role === 'student' ? '#ffffff' : 'transparent', color: role === 'student' ? '#4f46e5' : '#64748b', transition: 'all 0.2s' }}>
-              👨‍🎓 Student
-            </button>
-            <button type="button" onClick={() => setRole('teacher')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', backgroundColor: role === 'teacher' ? '#ffffff' : 'transparent', color: role === 'teacher' ? '#4f46e5' : '#64748b', transition: 'all 0.2s' }}>
-              👩‍🏫 Teacher
-            </button>
-          </div>
+          {/* Role selector picker is active during Signup flow view context */}
+          {isSignup && (
+            <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '6px', borderRadius: '12px', marginBottom: '24px' }}>
+              <button type="button" onClick={() => setRole('student')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', backgroundColor: role === 'student' ? '#ffffff' : 'transparent', color: role === 'student' ? '#4f46e5' : '#64748b', transition: 'all 0.2s' }}>
+                👨‍🎓 Student
+              </button>
+              <button type="button" onClick={() => setRole('teacher')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem', backgroundColor: role === 'teacher' ? '#ffffff' : 'transparent', color: role === 'teacher' ? '#4f46e5' : '#64748b', transition: 'all 0.2s' }}>
+                👩‍🏫 Teacher
+              </button>
+            </div>
+          )}
 
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <form onSubmit={isSignup ? handleSignup : handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Email Address</label>
               <input type="email" placeholder="name@school.edu" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', boxSizing: 'border-box' }} required />
             </div>
             <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Password</label>
+              <label style={{ fontSize: '0.8rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Security Password</label>
               <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', boxSizing: 'border-box' }} required />
             </div>
 
             <button type="submit" style={{ backgroundColor: '#4f46e5', color: '#fff', border: 'none', padding: '14px', borderRadius: '12px', fontWeight: '600', cursor: 'pointer', fontSize: '1rem', marginTop: '10px' }}>
-              Sign In as {role === 'teacher' ? 'Teacher' : 'Student'}
+              {isSignup ? `Register Profile` : "Sign In to Workspace"}
             </button>
           </form>
+
+          {/* Toggle Button view between signup mode and login mode */}
+          <div style={{ textTransform: 'none', textAlign: 'center', marginTop: '24px', fontSize: '0.9rem', color: '#64748b' }}>
+            {isSignup ? "Already have an account?" : "New to the campus hub?"}{" "}
+            <button type="button" onClick={() => setIsSignup(!isSignup)} style={{ background: 'none', border: 'none', color: '#4f46e5', fontWeight: '600', cursor: 'pointer', padding: 0, fontSize: '0.9rem', textDecoration: 'underline' }}>
+              {isSignup ? "Sign In Here" : "Create Account"}
+            </button>
+          </div>
+
         </div>
       </div>
     );
   }
 
-  // ================= 2. WORKSPACE VIEW (LOGGED IN) =================
+  // ================= 2. MAIN APP WORKSPACE VIEW (LOGGED IN) =================
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', color: '#0f172a' }}>
       
@@ -124,7 +161,7 @@ function App() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: '600', color: role === 'teacher' ? '#047857' : '#1d4ed8', backgroundColor: role === 'teacher' ? '#d1fae5' : '#eff6ff', padding: '6px 14px', borderRadius: '20px' }}>
-            {role === 'teacher' ? '👩‍🏫 Teacher Workspace' : '👨‍🎓 Student Dashboard'}
+            {role === 'teacher' ? '👩‍🏫 Teacher Profile' : '👨‍🎓 Student Profile'}
           </span>
           <button onClick={() => setIsLoggedIn(false)} style={{ background: 'none', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500', color: '#64748b' }}>
             Logout
@@ -134,7 +171,7 @@ function App() {
 
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '40px 20px' }}>
         
-        {/* TEACHER ONLY STATS & ROSTER PANEL */}
+        {/* TEACHER ANALYTICS VIEW PANEL (TEACHER ONLY) */}
         {role === 'teacher' && (
           <div style={{ marginBottom: '40px' }}>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '800', margin: '0 0 4px 0' }}>📈 Class Performance Analytics</h2>
@@ -194,10 +231,10 @@ function App() {
           </div>
         )}
 
-        {/* ================= CONTENT INTERFACE GRID ================= */}
+        {/* ================= INTERFACE GRID CONTENT ================= */}
         <div style={{ display: 'grid', gridTemplateColumns: role === 'teacher' ? 'repeat(auto-fit, minmax(350px, 1fr))' : '1fr', gap: '32px', alignItems: 'start' }}>
           
-          {/* CREATION SIDEBAR (TEACHERS ONLY) */}
+          {/* CONTROL BOX PANEL FOR FORMS (TEACHERS ONLY) */}
           {role === 'teacher' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
               <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '28px' }}>
@@ -235,7 +272,7 @@ function App() {
             </div>
           )}
 
-          {/* ACTIVE FEEDS VIEW PANEL (STUDENTS & TEACHERS) */}
+          {/* SHARED POSTS RENDER ROW COLUMNS */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', gridColumn: role === 'teacher' ? 'span 2' : 'span 1' }}>
             <div>
               <h2 style={{ fontSize: '1.4rem', fontWeight: '800', margin: '0 0 20px 0' }}>📌 Institutional Notice Board</h2>
