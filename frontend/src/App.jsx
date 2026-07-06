@@ -176,7 +176,7 @@ function App() {
             </button>
           </form>
           <p onClick={() => setIsSignup(!isSignup)} style={{ textAlign: 'center', color: '#4f46e5', cursor: 'pointer', marginTop: '16px', fontSize: '0.9rem' }}>
-            {isSignup ? "Already have an account? Login" : "Create a new commercial enterprise profile"}
+            {isSignup ? "Already have an account? Login" : "Create a new profile"}
           </p>
         </div>
       </div>
@@ -229,8 +229,8 @@ function App() {
           <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', flex: 1 }}>
             <h4 style={{ margin: '0 0 16px 0' }}>📂 Class Syllabus Documents</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {resources.length > 0 ? resources.map(res => (
-                <div key={res.id} onClick={() => openDocumentHub(res)} style={{ padding: '14px', borderRadius: '10px', border: selectedRes?.id === res.id ? '2px solid #4f46e5' : '1px solid #e2e8f0', backgroundColor: selectedRes?.id === res.id ? '#f5f3ff' : '#fff', cursor: 'pointer' }}>
+            {resources && resources.length > 0 ? resources.map(res => (
+              <div key={res.id} onClick={() => openDocumentHub(res)} style={{ padding: '14px', borderRadius: '10px', border: selectedRes?.id === res.id ? '2px solid #4f46e5' : '1px solid #e2e8f0', backgroundColor: selectedRes?.id === res.id ? '#f5f3ff' : '#fff', cursor: 'pointer' }}>
                   <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>{res.title}</div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>Version v{res.version || 1} • {res.subject}</div>
                 </div>
@@ -347,7 +347,8 @@ function App() {
               <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 24px 0' }}>Request missing notes from peers or fulfill open requests to earn bounty points toward certification badges.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {bounties && bounties.length > 0 ? bounties.map(b => (                  <div key={b.id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {bounties && bounties.length > 0 ? bounties.map(b => (             
+                     <div key={b.id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <h4 style={{ margin: '0 0 4px 0' }}>{b.topic_title}</h4>
                       <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Status: <strong>{b.status.toUpperCase()}</strong> • Requested By: {b.profiles?.email || 'System'}</span>
