@@ -347,8 +347,7 @@ function App() {
               <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 24px 0' }}>Request missing notes from peers or fulfill open requests to earn bounty points toward certification badges.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {bounties.length > 0 ? bounties.map(b => (
-                  <div key={b.id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {bounties && bounties.length > 0 ? bounties.map(b => (                  <div key={b.id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <h4 style={{ margin: '0 0 4px 0' }}>{b.topic_title}</h4>
                       <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Status: <strong>{b.status.toUpperCase()}</strong> • Requested By: {b.profiles?.email || 'System'}</span>
