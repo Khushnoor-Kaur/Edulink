@@ -13,6 +13,11 @@ app.use(express.json());
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// ================= HEALTH CHECK ENDPOINT =================
+app.get('/', (req, res) => {
+  res.status(200).send("EduLink Commercial Kernel Active");
+});
+
 // ================= AUTHENTICATION SUBSYSTEM =================
 app.post('/api/auth/signup', async (req, res) => {
   const { email, password, role } = req.body;
@@ -22,7 +27,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
   if (data.user) {
     await supabase.from('profiles').insert([
-      { id: data.user.id, email: email.toLowerCase(), role, tier: 'free' }
+      { id: data.user.id, email: email.toLowerCase(), role, tier: 'free', bounty_points: 0 }
     ]);
   }
   res.status(201).json({ message: "Registration verified! Please log in." });
@@ -47,7 +52,7 @@ app.get('/api/annotations/:resourceId', async (req, res) => {
     .order('created_at', { ascending: true });
     
   if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+  res.json(data || []);
 });
 
 app.post('/api/annotations', async (req, res) => {
@@ -65,6 +70,10 @@ app.post('/api/annotations', async (req, res) => {
 app.post('/api/ai/process-material', async (req, res) => {
   const { resourceId, content } = req.body;
 
+  if (!content) {
+    return res.status(400).json({ error: "No content provided to analyze." });
+  }
+
   try {
     const prompt = `
       Analyze the following academic document material and generate an actionable study suite structure in valid raw JSON.
@@ -79,6 +88,7 @@ app.post('/api/ai/process-material', async (req, res) => {
       ${content}
     `;
 
+    // Correct SDK v2 call using the stateless client generation syntax
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
@@ -91,6 +101,7 @@ app.post('/api/ai/process-material', async (req, res) => {
 
     const generatedData = JSON.parse(cleanJsonString.trim());
 
+    // Save or update entries within the database asset collection
     const { data, error } = await supabase
       .from('ai_study_assets')
       .upsert({
@@ -102,9 +113,9 @@ app.post('/api/ai/process-material', async (req, res) => {
       .select();
 
     if (error) throw error;
-    res.json(data[0]);
+    res.json(data[0] || generatedData);
   } catch (err) {
-    console.error(err);
+    console.error("AI Generation Error: ", err);
     res.status(500).json({ error: "Failed to compile AI study suite elements." });
   }
 });
@@ -148,7 +159,7 @@ app.post('/api/resources/ocr-upload', async (req, res) => {
 // ================= FEATURE 5: GAMIFIED PEER STUDY BOUNTIES =================
 app.get('/api/bounties', async (req, res) => {
   const { data } = await supabase.from('peer_notes').select('*, profiles(email)').order('upvotes', { ascending: false });
-  res.json(data);
+  res.json(data || []);
 });
 
 app.post('/api/bounties/claim', async (req, res) => {
@@ -180,7 +191,7 @@ app.post('/api/bounties/verify', async (req, res) => {
 // Core Dynamic Global Fetch Endpoints
 app.get('/api/resources', async (req, res) => {
   const { data } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
-  res.json(data);
+  res.json(data || []);
 });
 
 app.post('/api/resources', async (req, res) => {
